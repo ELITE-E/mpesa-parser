@@ -8,5 +8,14 @@ dependencies = [
     "pandas>=3.0.3",
     "pdfplumber>=0.11.10",
     "pytest>=9.1.1",
+    "pytest-cov>=7.1.0",
     "ruff>=0.15.22",
 ]
+
+[tool.ruff]
+line-length = 88
+lint.select = ["E", "F","I"]# PEP8 errors,Pyflakes,and sort
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
