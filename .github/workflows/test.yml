@@ -1,0 +1,12 @@
+name: Test suite
+on: [push,pull_request]
+jobs:
+    test:
+       runs-on: ubuntu-latest
+       steps:
+          - uses : actions/checkout@v4
+          - uses : astral-sh/setup-uv@v3
+          - uses : uv sync
+          - uses : uv run pytest
+          - uses : uv run ruff check
+          
