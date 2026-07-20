@@ -19,7 +19,7 @@ def _execute_currency_parsing(raw_currency: str) -> float:
     """The formatting rules for string-to-float conversions."""
     if pd.isna(raw_currency) or raw_currency == "":
         return 0.0
-
+            
     if isinstance(raw_currency, (int, float)):
         return float(raw_currency)
 
