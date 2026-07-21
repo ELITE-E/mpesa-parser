@@ -19,3 +19,6 @@ lint.select = ["E", "F","I"]# PEP8 errors,Pyflakes,and sort
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+filterwarnings = [
+    "ignore::ResourceWarning:pandas.core.flags"
+]

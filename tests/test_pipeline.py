@@ -5,6 +5,7 @@ import pytest
 
 from src.database import get_all_transactions
 from src.pipeline import ingest_statement_to_ledger, process_mpesa_statement
+from src.analytics import calculate_monthly_expenditure, get_heavy_hitters
 
 
 @patch("pdfplumber.open")
@@ -128,3 +129,38 @@ def test_ingest_statement_to_ledger_writes_to_database(mock_pdf_open, test_pipel
     assert saved_records_df.loc[0, "details"] == "Naivas Supermarket 1234"
     assert saved_records_df.loc[0, "category"] == "PURCHASE"
     assert saved_records_df.loc[0, "total_cost"] == 500.0
+
+@patch("pdfplumber.open")
+
+def test_pipeline_to_analytics_integration(mock_pdf_open):
+    """
+    Verifies that the clean output from the main pipeline is completely 
+    compatible with the data requirements of the analytics module.
+    """
+    # 1. Setup Mock Multi-Page PDF output containing an expenditure and an associated fee
+    mock_pdf = MagicMock()
+    mock_page_1 = MagicMock()
+    mock_page_1.extract_table.return_value = [
+        ["Receipt No.", "Completion Time", "Details", "Paid In", "Paid Out", "Balance"],
+        ["QA11111111", "2026-07-01 10:00:00", "Till - 5555 - Naivas Supermarket", "KSh 5,000.00", "", "5000.00"],
+        ["QA11111111", "2026-07-01 10:05:00", "Customer Transfer of Funds Charge", "", "KSh 29.00", "4971.00"]
+    ]
+    mock_pdf.pages = [mock_page_1]
+    mock_pdf_open.return_value.__enter__.return_value = mock_pdf
+
+    # 2. Execute the in-memory data processing pipeline
+    cleaned_df = process_mpesa_statement("fake_statement.pdf")
+
+    # 3. Pass pipeline data output directly into the analytics engines
+    monthly_summary = calculate_monthly_expenditure(cleaned_df)
+    heavy_hitters = get_heavy_hitters(cleaned_df, top_n=1)
+
+    # 4. Assert Monthly Summary Insights (5000.00 base + 29.00 fee = 5029.0)
+    monthly_indexed = monthly_summary.set_index("month")
+    assert "2026-07" in monthly_indexed.index
+    assert monthly_indexed.loc["2026-07", "total"] == 5029.0
+
+    # 5. Assert Heavy Hitter Structural Output
+    assert len(heavy_hitters) == 1
+    assert heavy_hitters.iloc[0]["details"] == "Naivas Supermarket 5555"
+    assert heavy_hitters.iloc[0]["total_cost"] == 5029.0
