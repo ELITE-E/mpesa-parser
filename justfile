@@ -4,7 +4,7 @@ test:
 
 # Lint the code
 lint:
-    uv run ruff check src tests
+    uv run ruff check --fix src tests
 
 # Auto-format the code
 format:
@@ -12,3 +12,4 @@ format:
 
 # Run all quality checks
 check: lint test
+
