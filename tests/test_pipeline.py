@@ -3,9 +3,9 @@ from unittest.mock import MagicMock, patch
 import pandas as pd
 import pytest
 
+from src.analytics import calculate_monthly_expenditure, get_heavy_hitters
 from src.database import get_all_transactions
 from src.pipeline import ingest_statement_to_ledger, process_mpesa_statement
-from src.analytics import calculate_monthly_expenditure, get_heavy_hitters
 
 
 @patch("pdfplumber.open")
@@ -130,20 +130,35 @@ def test_ingest_statement_to_ledger_writes_to_database(mock_pdf_open, test_pipel
     assert saved_records_df.loc[0, "category"] == "PURCHASE"
     assert saved_records_df.loc[0, "total_cost"] == 500.0
 
-@patch("pdfplumber.open")
 
+@patch("pdfplumber.open")
 def test_pipeline_to_analytics_integration(mock_pdf_open):
     """
-    Verifies that the clean output from the main pipeline is completely 
+    Verifies that the clean output from the main pipeline is completely
     compatible with the data requirements of the analytics module.
     """
-    # 1. Setup Mock Multi-Page PDF output containing an expenditure and an associated fee
+    # 1. Setup Mock Multi-Page PDF output
+    #  containing an expenditure and an associated fee
     mock_pdf = MagicMock()
     mock_page_1 = MagicMock()
     mock_page_1.extract_table.return_value = [
         ["Receipt No.", "Completion Time", "Details", "Paid In", "Paid Out", "Balance"],
-        ["QA11111111", "2026-07-01 10:00:00", "Till - 5555 - Naivas Supermarket", "KSh 5,000.00", "", "5000.00"],
-        ["QA11111111", "2026-07-01 10:05:00", "Customer Transfer of Funds Charge", "", "KSh 29.00", "4971.00"]
+        [
+            "QA11111111",
+            "2026-07-01 10:00:00",
+            "Till - 5555 - Naivas Supermarket",
+            "KSh 5,000.00",
+            "",
+            "5000.00",
+        ],
+        [
+            "QA11111111",
+            "2026-07-01 10:05:00",
+            "Customer Transfer of Funds Charge",
+            "",
+            "KSh 29.00",
+            "4971.00",
+        ],
     ]
     mock_pdf.pages = [mock_page_1]
     mock_pdf_open.return_value.__enter__.return_value = mock_pdf
