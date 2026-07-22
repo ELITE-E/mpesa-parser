@@ -15,7 +15,7 @@ def temp_db(tmp_path):
 
 
 def test_db_schema_integrity(temp_db):
-    """Verifies that all columns, including newly 
+    """Verifies that all columns, including newly
     supported fields, exist.
     """
     with sqlite3.connect(temp_db) as conn:
@@ -90,7 +90,7 @@ def test_save_transactions_handles_empty_dataframe(temp_db):
 
 
 def test_get_all_transactions_returns_empty_dataframe_on_fresh_db(temp_db):
-    """Ensures query engine returns a valid, empty typed 
+    """Ensures query engine returns a valid, empty typed
     dataframe structure when no rows exist."""
     saved_df = get_all_transactions(db_path=temp_db)
     assert isinstance(saved_df, pd.DataFrame)
