@@ -3,6 +3,7 @@ import tempfile
 
 import pandas as pd
 import streamlit as st
+import pypdf
 
 from src.analytics import calculate_monthly_expenditure, get_heavy_hitters
 from src.database import get_all_transactions
@@ -50,20 +51,52 @@ def validate_uploaded_file(uploaded_file) -> bool:
     return uploaded_file.name.lower().endswith(".pdf")
 
 
-def process_and_store_pdf(uploaded_file, db_path: str = DB_PATH) -> None:
+def process_and_store_pdf(uploaded_file, password: str = None, db_path: str = DB_PATH) -> None:
     """Orchestrates statement data ingestion via the clean pipeline layer."""
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
         tmp_file.write(uploaded_file.getvalue())
         tmp_file_path = tmp_file.name
 
     try:
-        with st.spinner("Analyzing M-Pesa Statement..."):
-            ingest_statement_to_ledger(tmp_file_path, db_path=db_path)
-        st.success(
-            f"Successfully imported transaction vectors from {uploaded_file.name}"
-        )
+        with st.spinner("Analyzing Secured M-Pesa Statement..."):
+            records_saved, token = ingest_statement_to_ledger(
+                tmp_file_path, password=password, db_path=db_path
+            )
+            
+        if records_saved > 0:
+            st.success(f"Successfully imported {records_saved} records from {uploaded_file.name}")
+            # Cache the extracted verification token inside the active session state
+            st.session_state["verification_token"] = token
+        else:
+            st.error("Ingestion Failed: No valid M-Pesa data layout found.")
+            
+    except Exception as error:
+        
+        st.error(f"Ingestion Aborted: {error}")
     finally:
         os.remove(tmp_file_path)
+
+def _render_sidebar_controls():
+    """Renders data ingestion panels and handles dynamic password challenges."""
+    with st.sidebar:
+        st.header("Data Ingestion")
+        uploaded_file = st.file_uploader("Upload M-Pesa PDF Statement", type=["pdf"])
+        password = None
+        
+        if uploaded_file:
+            if validate_uploaded_file(uploaded_file):
+                reader = pypdf.PdfReader(uploaded_file)
+                if reader.is_encrypted:
+                    password = st.text_input(
+                        "Enter 6-Digit Statement Password", 
+                        type="password", 
+                        help="Enter the 6 digit code Safaricom sent to your mobile number."
+                    )
+                
+                if st.button("Process Statement"):
+                    process_and_store_pdf(uploaded_file, password=password)
+            else:
+                st.error("Invalid file signature. Please upload an authentic PDF.")
 
 
 def main():
@@ -74,7 +107,7 @@ def main():
 
     if not os.path.exists(DB_PATH):
         st.info(
-            "👋 Welcome! Please upload an M-Pesa PDF " \
+            "👋 Welcome! Please upload an M-Pesa PDF "
             "statement in the sidebar to begin analysis."
         )
         return
@@ -88,40 +121,25 @@ def main():
     _render_analytics_layout(df)
 
 
-def _render_sidebar_controls():
-    """Renders data ingestion interface panels inside the application sidebar."""
-    with st.sidebar:
-        st.header("Data Ingestion")
-        uploaded_file = st.file_uploader("Upload M-Pesa PDF Statement", type=["pdf"])
-
-        if uploaded_file:
-            if validate_uploaded_file(uploaded_file):
-                if st.button("Process Statement"):
-                    process_and_store_pdf(uploaded_file)
-            else:
-                st.error("Invalid file type. Please upload an authentic PDF document.")
-
-        st.markdown("---")
-        if st.button("Clear All Local Data", type="secondary"):
-            if os.path.exists(DB_PATH):
-                os.remove(DB_PATH)
-            st.rerun()
-
-
 def _render_top_summary_metrics(df: pd.DataFrame):
-    """Computes and updates high-level ledger stats."""
+    """Computes high-level ledger stats and displays security validation certificates."""
     total_expenditure = df["total_cost"].sum()
     efficiency = calculate_transfer_efficiency(df)
     transaction_count = len(df)
-
+    
     m1, m2, m3 = st.columns(3)
     m1.metric("Total Monthly Expenditure", format_currency_display(total_expenditure))
-    m2.metric(
-        "Transfer Efficiency",
-        f"{efficiency:.2f}%",
-        help="Transaction fees as a % of total value moved",
-    )
+    m2.metric("Transfer Efficiency", f"{efficiency:.2f}%")
     m3.metric("Transaction Volume", f"{transaction_count} records")
+    
+    
+    if "verification_token" in st.session_state:
+        token = st.session_state["verification_token"]
+        st.info(
+            f"🛡️ **Security Token Detected:** `{token}`. "
+            f"To completely verify this financial statement against Safaricom records, "
+            f"dial `*334#` on your mobile device, select *My Account*, and verify this code."
+        )
 
 
 def _render_analytics_layout(df: pd.DataFrame):
