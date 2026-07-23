@@ -13,3 +13,5 @@ format:
 # Run all quality checks
 check: lint test
 
+# run:
+#    uv run python -m streamlit run src/app.py
